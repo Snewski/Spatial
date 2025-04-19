@@ -1,0 +1,170 @@
+---
+title: "Spatial Exam"
+author: "Peter Houe Wisnewski"
+date: "2025-04-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+library(osrm)
+library(sf)
+library(dplyr)
+library(leaflet)
+library(lwgeom)
+
+```
+
+
+```{r, load data}
+
+
+
+#scrape_data <- read.csv("Data/places_and_addresses.csv", fileEncoding = "WINDOWS-1252")
+
+geo_data <- read.csv("Data/addresses_with_coordinates.csv", fileEncoding = "WINDOWS-1252")
+
+
+
+```
+
+
+```{r, removing bad serach words}
+
+# remove useless search words
+#scrape_data <- scrape_data[scrape_data$search_word != "\"Rema 1000\" in Aarhus", ]
+
+#data$search_word
+
+# Save the data to a CSV file
+#write.csv(scrape_data, file = "Data/places_and_addresses.csv", row.names = FALSE, fileEncoding = "WINDOWS-1252")
+
+
+```
+
+
+```{r, make simple feature}
+# Convert the dataframe to a simple feature
+sf_data <- st_as_sf(geo_data, coords = c("longitude", "latitude"), crs = 4326)  # crs 4326 is for WGS84 (GPS coordinates)
+# Save the sf
+st_write(sf_data, "Data/sf_data.shp")
+
+
+```
+
+
+
+```{r, make McD isochrone}
+
+# Filter sf_data for McDonald's near Aarhus
+mcdonalds_data <- sf_data %>%
+  filter(search_word == "McDonald's near Aarhus")
+
+# Generate 5 minute driving isochrone for each location
+wolt_isochrones <- lapply(1:nrow(mcdonalds_data), function(i) {
+  osrmIsochrone(
+    loc = st_coordinates(mcdonalds_data[i, ]),
+    breaks = 5,
+    osrm.profile = "car"
+  )
+})
+
+# Combine all isochrones into a single sf object
+wolt_isochrones_sf <- do.call(rbind, wolt_isochrones)
+
+
+```
+
+```{r, make Rema 1000 isochrone}
+
+# Filter sf_data for Rema 1000 in Aarhus
+rema_data <- sf_data %>%
+  filter(search_word == "Rema 1000 8000 Aarhus")
+
+# Generate 15 minute Walking isochrone for each location
+rema_isochrones <- lapply(1:nrow(rema_data), function(i) {
+  osrmIsochrone(
+    loc = st_coordinates(rema_data[i, ]),
+    breaks = 15,  
+    osrm.profile = "foot"
+  )
+})
+
+# Combine all isochrones into a single sf object
+rema_isochrones_sf <- do.call(rbind, rema_isochrones)
+
+
+```
+
+```{r, isochrone plot}
+
+# Plotting the generated isochrones
+
+leaflet() %>%
+  addTiles() %>%  # Add a base map
+  addPolygons(data = wolt_isochrones_sf, color = "blue", weight = 1, fillOpacity = 0.4, group = "McDonald's Isochrones") %>%  # McDonald's isochrones
+  addPolygons(data = rema_isochrones_sf, color = "green", weight = 1, fillOpacity = 0.4, group = "Rema 1000 Isochrones") %>%  # Rema 1000 isochrones
+  addMarkers(data = mcdonalds_data, popup = ~search_word, group = "McDonald's Locations") %>%  # McDonald's points
+  addMarkers(data = rema_data, popup = ~search_word, group = "Rema 1000 Locations") %>%  # Rema 1000 points
+  addLayersControl(
+    overlayGroups = c("McDonald's Isochrones", "Rema 1000 Isochrones", "McDonald's Locations", "Rema 1000 Locations"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+```
+
+
+```{r, plotting intersection}
+
+
+# Fix invalid geometries
+wolt_isochrones_sf <- st_make_valid(wolt_isochrones_sf)
+rema_isochrones_sf <- st_make_valid(rema_isochrones_sf)
+
+# Find the intersection of the two isochrones
+intersection <- st_intersection(rema_isochrones_sf, wolt_isochrones_sf)
+
+# Plotting the intersection
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = intersection, color = "purple", weight = 1, fillOpacity = 0.4, group = "Intersection") %>%
+  addPolygons(data = rema_isochrones_sf, color = "green", weight = 1, fillOpacity = 0.3, group = "Rema Isochrones") %>%
+  addPolygons(data = wolt_isochrones_sf, color = "blue", weight = 1, fillOpacity = 0.3, group = "McDonald's Isochrones") %>%
+  addMarkers(data = rema_data, popup = ~search_word, group = "Rema Locations") %>%
+  addMarkers(data = mcdonalds_data, popup = ~search_word, group = "McDonald's Locations") %>%
+  addLayersControl(
+    overlayGroups = c("Intersection", "Rema Isochrones", "McDonald's Isochrones", "Rema Locations", "McDonald's Locations"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
