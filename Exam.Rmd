@@ -1,0 +1,185 @@
+---
+title: "Spatial Exam"
+author: "Peter Houe Wisnewski"
+date: "04-06-2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(htmlwidgets)
+library(osrm)
+library(sf)
+library(tidyverse)
+library(leaflet)
+library(lwgeom)
+library(stringr)
+```
+
+
+```{r, data preprocessing}
+
+# Load data
+scrape_data <- read.csv("Data/places_and_links.csv", fileEncoding = "WINDOWS-1252")
+
+# remove useless search results
+#scrape_data <- scrape_data[scrape_data$place_name != "Mac's Sandwich", ]
+
+# Isolate href column
+urls <- scrape_data$href
+
+# Extract latitude and longitude coordinates from the link
+scrape_data$latitude <- str_extract(urls, "(?<=!3d)[0-9\\.]+")
+scrape_data$longitude <- str_extract(urls, "(?<=!4d)[0-9\\.]+")
+
+
+# Save the data to a new CSV file
+write.csv(scrape_data, file = "Data/places_with_coordinates.csv", row.names = FALSE, fileEncoding = "WINDOWS-1252")
+
+
+```
+
+
+```{r, load preprocessed data}
+
+scrape_data <- read.csv("Data/places_with_coordinates.csv", fileEncoding = "WINDOWS-1252")
+
+```
+
+
+```{r, make simple feature}
+# Convert the dataframe to a simple feature
+sf_data <- st_as_sf(scrape_data, coords = c("longitude", "latitude"), crs = 4326)  # crs 4326 is for WGS84 (GPS coordinates)
+
+# Save the sf (Note this messes with column names)
+st_write(sf_data, "Data/sf_data.shp")
+
+
+```
+
+
+```{r, load shapefile}
+# Run this to be able to create the following plots!!!
+sf_data <- read_sf("Data/sf_data.shp")
+
+```
+
+
+```{r, locations plot}
+
+# Create interactive Leaflet map
+leaflet(sf_data) %>%
+  addTiles() %>%
+  addCircleMarkers(
+    radius = 6,
+    color = "blue",
+    fillOpacity = 0.7,
+    popup = ~plac_nm  # Shows the place name in popup
+  ) %>%
+  setView(lng = mean(st_coordinates(sf_data)[,1]), lat = mean(st_coordinates(sf_data)[,2]), zoom = 12)
+
+
+```
+
+
+```{r, make McD isochrone}
+
+# Filter sf_data for McDonald's near Aarhus
+mcdonalds_data <- sf_data %>%
+  filter(srch_wr == "McDonald's near Aarhus")
+
+# Generate 5 minute driving isochrone for each location
+mac_isochrones <- lapply(1:nrow(mcdonalds_data), function(i) {
+  osrmIsochrone(
+    loc = st_coordinates(mcdonalds_data[i, ]),
+    breaks = 5,
+    osrm.profile = "car"
+  )
+})
+
+# Combine all isochrones into a single sf object
+mac_isochrones_sf <- do.call(rbind, mac_isochrones)
+
+
+```
+
+```{r, make Rema 1000 isochrone}
+
+# Filter sf_data for Rema 1000 in Aarhus
+rema_data <- sf_data %>%
+  filter(srch_wr == "Rema 1000 8000 Aarhus")
+
+# Generate 10 minute Walking isochrone for each location
+rema_isochrones <- lapply(1:nrow(rema_data), function(i) {
+  osrmIsochrone(
+    loc = st_coordinates(rema_data[i, ]),
+    breaks = 10,  
+    osrm.profile = "foot"
+  )
+})
+
+# Combine all isochrones into a single sf object
+rema_isochrones_sf <- do.call(rbind, rema_isochrones)
+
+
+```
+
+
+```{r, isochrone plot}
+
+# Plotting the generated Macdonald's isochrones
+mac_map <- leaflet() %>%
+  addTiles() %>%  # Add a base map
+  addPolygons(data = mac_isochrones_sf, color = "orange", weight = 1, fillOpacity = 0.4, group = "McDonald's Isochrones") %>%  # McDonald's isochrones
+  addMarkers(data = mcdonalds_data, popup = ~plac_nm, group = "McDonald's Locations") %>%  # McDonald's points
+  addLayersControl(
+    overlayGroups = c("McDonald's Isochrones","McDonald's Locations"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+saveWidget(mac_map, file = "Out/mcdonalds_isochrones.html")
+```
+
+
+```{r, isochrone plot}
+
+# Plotting the generated Rema 1000 isochrones
+rema_map <- leaflet() %>%
+  addTiles() %>%  # Add a base map
+  addPolygons(data = rema_isochrones_sf, color = "blue", weight = 1, fillOpacity = 0.4, group = "Rema Isochrones") %>% 
+  addMarkers(data = rema_data, popup = ~plac_nm, group = "Rema Locations") %>% 
+  addLayersControl(
+    overlayGroups = c("Rema Isochrones","Rema Locations"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+saveWidget(rema_map, file = "Out/rema_isochrones.html")
+```
+
+
+```{r, plotting intersection}
+
+
+# Fix invalid geometries
+mac_isochrones_sf <- st_make_valid(mac_isochrones_sf)
+rema_isochrones_sf <- st_make_valid(rema_isochrones_sf)
+
+# Find the intersection of the two isochrones
+intersection <- st_intersection(rema_isochrones_sf, mac_isochrones_sf)
+
+# Plotting the intersection
+intersection_map <- leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = intersection, color = "purple", weight = 1, fillOpacity = 0.4, group = "Intersection Isochrone") %>%
+  addLayersControl(
+    overlayGroups = c("Intersection Isochrone"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+saveWidget(intersection_map, file = "Out/intersection_map.html")
+```
+
