@@ -16,6 +16,8 @@ The `Scraper.py` script needs an absolute path to the web driver and an absolute
 
 The `Scraper.py` script also needs a search word, which will be used to generate the search results that will be scraped.
 
+In the `Exam.Rmd`, it is necessary to load the shapefile after saving it, due to some of the column names being shortened in the saving process. 
+
 ## Analysis
 
 The `Exam.Rmd` script creates and visualizes isochrones, and the intersections of different isochrones to highlight areas fulfilling multiple travel requirements. Examples of these visualizations can be seen in the `Out` folder.  
