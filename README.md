@@ -12,7 +12,9 @@ For the `Scraper.py` and `Rev_Geocoding.py` scripts it is necessary to install t
 
 For the `Scraper.py` script, both Microsoft Edge and a webdriver (https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/?form=MA13LH) with a compatible version is needed.  
 
-The `Scraper.py` script also needs an absolute path to the webd driver and a unique user data directory. 
+The `Scraper.py` script needs an absolute path to the web driver and an absolute path to a unique user data directory. 
+
+The `Scraper.py` script also needs a search word, which will be used to generate the search results that will be scraped.
 
 ## Analysis
 
