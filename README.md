@@ -3,6 +3,8 @@ This repository contains the scripts to the exam project related to the Spatial 
 
 *Disclaimer:* For any data extraction from Google Maps, it is highly recommended to use the Google Places API
 
+If anyone intends to use this scraper, please read through: maps.google.com/robots.txt and https://www.google.com/intl/en_eng/help/terms_maps/ 
+
 ## License
 This work is licensed under CC BY 4.0 
 
